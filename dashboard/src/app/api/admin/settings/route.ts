@@ -172,7 +172,13 @@ export async function POST(request: NextRequest) {
 
     if (action === 'create') {
       // Create new commission rule
-      const { name, type, value, conditions, isDefault } = ruleData;
+      const { name, type, value, conditions, isDefault } = ruleData as {
+        name: string;
+        type: string;
+        value: number;
+        conditions?: Record<string, unknown>;
+        isDefault?: boolean;
+      };
 
       if (!name || !type || value === undefined) {
         return NextResponse.json(
