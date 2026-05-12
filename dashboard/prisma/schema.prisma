@@ -1,0 +1,824 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────────────────────────
+// User & Authentication
+// ───────────────────────────────────────────────
+
+model User {
+  id             String     @id @default(cuid())
+  email          String     @unique
+  name           String
+  password       String
+  role           Role       @default(ADMIN)
+  status         UserStatus @default(ACTIVE)
+  lastLogin      DateTime?  @map("last_login")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+  profilePicture String?    @map("profile_picture")
+  auditLogs         AuditLog[]
+  affiliate         Affiliate?
+  integrations      IntegrationSettings[]
+  teamMembers       TeamMember[]
+  payouts           Payout[]
+
+  @@map("users")
+}
+
+model OTP {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  expiresAt DateTime @map("expires_at")
+  isUsed    Boolean  @default(false) @map("is_used")
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([email])
+  @@index([code])
+  @@map("otps")
+}
+
+// ───────────────────────────────────────────────
+// Affiliate (partner) relationship
+// ───────────────────────────────────────────────
+
+model Affiliate {
+  id           String   @id @default(cuid())
+  userId       String   @unique @map("user_id")
+  code         String   @unique
+  referralCode String?  @map("referral_code")
+  balanceCents Int      @default(0) @map("balance_cents")
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referrals     Referral[]
+  commissions   Commission[]
+  referralClicks ReferralClick[]
+
+  @@map("affiliates")
+}
+
+// ───────────────────────────────────────────────
+// Rate Limiting
+// ───────────────────────────────────────────────
+
+model RateLimitEntry {
+  id           String   @id @default(cuid())
+  identifier   String
+  endpoint     String
+  windowStart  DateTime @map("window_start")
+  requestCount Int      @default(1) @map("request_count")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([identifier, endpoint, windowStart])
+  @@index([identifier])
+  @@index([endpoint])
+  @@index([windowStart])
+  @@map("rate_limit_entries")
+}
+
+// ───────────────────────────────────────────────
+// Lead Management
+// ───────────────────────────────────────────────
+
+model Lead {
+  id         String      @id @default(cuid())
+  clickId    String      @unique @map("click_id")
+  email      String?
+  phone      String?
+  name       String?
+  source     String?     // facebook, google, direct, instagram, tiktok, etc.
+  campaignId String?     @map("campaign_id")
+  tags       Json        @default("[]") // ["visitante", "ftd", "deposito", "redeposito", "recuperacao"]
+  status     LeadStatus  @default(NEW)
+  metadata   Json        @default("{}")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+
+  events      LeadEvent[]
+  tagsHistory TagHistory[]
+
+  @@index([clickId])
+  @@index([email])
+  @@index([source])
+  @@index([status])
+  @@map("leads")
+}
+
+model LeadEvent {
+  id        String   @id @default(cuid())
+  leadId    String   @map("lead_id")
+  event     String   // click, registration, ftd, deposit, redeposit, recovery, withdrawal, bet
+  amount    Decimal? @db.Decimal(10, 2)
+  currency  String   @default("BRL")
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([event])
+  @@index([createdAt])
+  @@map("lead_events")
+}
+
+model TagHistory {
+  id        String   @id @default(cuid())
+  leadId    String   @map("lead_id")
+  tag       String
+  added     Boolean  @default(true) // true = adicionada, false = removida
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([tag])
+  @@map("tag_history")
+}
+
+// ───────────────────────────────────────────────
+// Postback Events (iGaming)
+// ───────────────────────────────────────────────
+
+model PostbackEvent {
+  id          String            @id @default(cuid())
+  clickId     String            @map("click_id")
+  event       PostbackEventType
+  amount      Decimal?          @db.Decimal(10, 2)
+  currency    String            @default("BRL")
+  timestamp   DateTime
+  userId      String?           @map("user_id")
+  ip          String?
+  affiliateId String?           @map("affiliate_id")
+  metadata    Json              @default("{}")
+  status      PostbackStatus    @default(PENDING)
+  processedAt DateTime?         @map("processed_at")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  @@index([clickId])
+  @@index([event])
+  @@index([userId])
+  @@index([status])
+  @@map("postback_events")
+}
+
+// ───────────────────────────────────────────────
+// Traffic Sources (Facebook Ads, Google Ads, etc.)
+// ───────────────────────────────────────────────
+
+model FacebookCampaign {
+  id           String         @id @default(cuid())
+  campaignId   String         @unique @map("campaign_id")
+  campaignName String         @map("campaign_name")
+  platform     String         @default("facebook")
+  status       CampaignStatus @default(ACTIVE)
+  startDate    DateTime?      @map("start_date")
+  endDate      DateTime?      @map("end_date")
+  budget       Decimal?       @db.Decimal(10, 2)
+  currency     String         @default("BRL")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  metrics FacebookMetrics[]
+
+  @@index([campaignId])
+  @@index([status])
+  @@map("facebook_campaigns")
+}
+
+model FacebookMetrics {
+  id          String   @id @default(cuid())
+  campaignId  String   @map("campaign_id")
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  spend       Decimal  @default(0) @db.Decimal(10, 2)
+  conversions Int      @default(0)
+  revenue     Decimal  @default(0) @db.Decimal(10, 2)
+  ctr         Decimal  @default(0) @db.Decimal(5, 2)
+  cpc         Decimal  @default(0) @db.Decimal(10, 2)
+  roas        Decimal  @default(0) @db.Decimal(5, 2)
+  date        DateTime @map("date") @db.Date
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  campaign FacebookCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, date])
+  @@index([campaignId])
+  @@index([date])
+  @@map("facebook_metrics")
+}
+
+// ───────────────────────────────────────────────
+// Program Settings
+// ───────────────────────────────────────────────
+
+model ProgramSettings {
+  id                        String   @id @default(cuid())
+  programId                 String   @unique @map("program_id")
+  productName               String   @map("product_name")
+  programName               String   @map("program_name")
+  websiteUrl                String   @map("website_url")
+  currency                  String   @default("BRL")
+  blockedCountries          Json     @default("[]") @map("blocked_countries")
+  companyLogo               String?  @map("company_logo")
+  favicon                   String?
+  companyName               String?  @map("company_name")
+  portalSubdomain           String?  @map("portal_subdomain")
+  minimumPayoutThreshold    Int      @default(0) @map("minimum_payout_threshold")
+  payoutTerm                String?  @default("NET-30") @map("payout_term")
+  commissionHoldDays        Int      @default(0) @map("commission_hold_days")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  @@map("program_settings")
+}
+
+// ───────────────────────────────────────────────
+// Audit & Logging
+// ───────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String   @map("actor_id")
+  action     String
+  objectType String   @map("object_type")
+  objectId   String   @map("object_id")
+  payload    Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+  actor      User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+  @@index([objectType])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ───────────────────────────────────────────────
+// Email System
+// ───────────────────────────────────────────────
+
+model EmailTemplate {
+  id        String            @id @default(cuid())
+  type      EmailTemplateType
+  name      String
+  subject   String
+  body      String
+  variables Json              @default("[]")
+  isActive  Boolean           @default(true) @map("is_active")
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  emailLogs EmailLog[]
+
+  @@map("email_templates")
+}
+
+model EmailLog {
+  id             String        @id @default(cuid())
+  templateId     String        @map("template_id")
+  recipientId    String        @map("recipient_id")
+  recipientEmail String        @map("recipient_email")
+  subject        String
+  body           String
+  status         EmailStatus   @default(PENDING)
+  sentAt         DateTime?     @map("sent_at")
+  error          String?
+  metadata       Json          @default("{}")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  template       EmailTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId])
+  @@index([templateId])
+  @@index([status])
+  @@map("email_logs")
+}
+
+// ───────────────────────────────────────────────
+// Webhooks & API
+// ───────────────────────────────────────────────
+
+model Webhook {
+  id              String      @id @default(cuid())
+  name            String
+  url             String
+  secret          String
+  events          Json        @default("[]") // Array of event types
+  isActive        Boolean     @default(true) @map("is_active")
+  failureCount    Int         @default(0) @map("failure_count")
+  lastTriggeredAt DateTime?   @map("last_triggered_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  logs            WebhookLog[]
+
+  @@index([isActive])
+  @@map("webhooks")
+}
+
+model WebhookLog {
+  id           String        @id @default(cuid())
+  webhookId    String        @map("webhook_id")
+  eventType    String        @map("event_type")
+  payload      Json          @default("{}")
+  status       WebhookStatus @default(PENDING)
+  statusCode   Int?          @map("status_code")
+  response     String?
+  error        String?
+  attempts     Int           @default(0)
+  nextRetryAt  DateTime?     @map("next_retry_at")
+  completedAt  DateTime?     @map("completed_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  webhook      Webhook       @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([eventType])
+  @@index([status])
+  @@map("webhook_logs")
+}
+
+model ApiKey {
+  id          String        @id @default(cuid())
+  name        String
+  key         String?       // Cleared after creation for security
+  keyHash     String        @unique @map("key_hash")
+  prefix      String        // first 8 chars for display
+  userId      String        @map("user_id")
+  scopes      Json          @default("[\"read\"]")
+  rateLimit   Int           @default(100) @map("rate_limit")
+  isActive    Boolean       @default(true) @map("is_active")
+  lastUsedAt  DateTime?     @map("last_used_at")
+  expiresAt   DateTime?     @map("expires_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  usageLogs   ApiUsageLog[]
+
+  @@index([keyHash])
+  @@index([userId])
+  @@index([isActive])
+  @@map("api_keys")
+}
+
+model ApiUsageLog {
+  id         String   @id @default(cuid())
+  apiKeyId   String   @map("api_key_id")
+  endpoint   String
+  method     String
+  statusCode Int      @map("status_code")
+  responseMs Int      @map("response_ms")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+  apiKey     ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@index([apiKeyId])
+  @@index([createdAt])
+  @@index([endpoint])
+  @@map("api_usage_logs")
+}
+
+// ───────────────────────────────────────────────
+// WhatsApp Messages
+// ───────────────────────────────────────────────
+
+model WhatsAppMessage {
+  id           String                 @id @default(cuid())
+  phone        String
+  message      String                 @db.Text
+  status       WhatsAppMessageStatus  @default(QUEUED)
+  userId       String?                @map("user_id")
+  template     String?
+  instance     String                 @default("default")
+  evolutionId  String?                @map("evolution_id")
+  sentAt       DateTime?              @map("sent_at")
+  deliveredAt  DateTime?              @map("delivered_at")
+  readAt       DateTime?              @map("read_at")
+  errorMessage String?                @map("error_message")
+  metadata     Json                   @default("{}")
+  createdAt    DateTime               @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([status])
+  @@map("whatsapp_messages")
+}
+
+// ───────────────────────────────────────────────
+// Referral System
+// ───────────────────────────────────────────────
+
+model Referral {
+  id            String         @id @default(cuid())
+  affiliateId   String         @map("affiliate_id")
+  leadId        String?        @map("lead_id")
+  clickId       String?        @map("click_id")
+  leadName      String?        @map("lead_name")
+  leadEmail     String?        @map("lead_email")
+  leadPhone     String?        @map("lead_phone")
+  name          String?
+  email         String?
+  phone         String?
+  status        ReferralStatus @default(PENDING)
+  reviewedAt    DateTime?       @map("reviewed_at")
+  reviewedBy    String?         @map("reviewed_by")
+  reviewNotes   String?         @map("review_notes")
+  notes         String?
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  affiliate    Affiliate    @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  conversions  Conversion[]
+  commissions  Commission[]
+
+  @@index([affiliateId])
+  @@index([status])
+  @@map("referrals")
+}
+
+model ReferralClick {
+  id          String   @id @default(cuid())
+  affiliateId String   @map("affiliate_id")
+  ip          String
+  userAgent   String?  @map("user_agent")
+  referrer    String?
+  fraudScore  Int      @default(0) @map("fraud_score")
+  isFraud     Boolean  @default(false) @map("is_fraud")
+  clickedAt   DateTime @default(now()) @map("clicked_at")
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId])
+  @@index([ip])
+  @@map("referral_clicks")
+}
+
+model Conversion {
+  id          String   @id @default(cuid())
+  referralId  String   @map("referral_id")
+  amountCents Int      @default(0) @map("amount_cents")
+  status      String   @default("PENDING")
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  referral    Referral     @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  commissions Commission[]
+
+  @@index([referralId])
+  @@map("conversions")
+}
+
+model Commission {
+  id              String    @id @default(cuid())
+  affiliateId     String    @map("affiliate_id")
+  referralId      String    @map("referral_id")
+  conversionId    String?   @map("conversion_id")
+  amountCents     Int       @default(0) @map("amount_cents")
+  rate            Float     @default(0)
+  status          String    @default("PENDING")
+  maturesAt       DateTime? @map("matures_at")
+  approvedAt      DateTime? @map("approved_at")
+  approvedBy      String?   @map("approved_by")
+  paidAt          DateTime? @map("paid_at")
+  payoutId        String?   @map("payout_id")
+  metadata        Json      @default("{}")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  affiliate  Affiliate  @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  referral   Referral   @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  conversion Conversion? @relation(fields: [conversionId], references: [id])
+  payout     Payout?    @relation(fields: [payoutId], references: [id])
+
+  @@index([affiliateId])
+  @@index([referralId])
+  @@index([payoutId])
+  @@map("commissions")
+}
+
+model CommissionRule {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  rate            Float    @default(0)
+  eventType       String   @map("event_type") // ftd, deposit, recovery
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("commission_rules")
+}
+
+// ───────────────────────────────────────────────
+// Partner Groups
+// ───────────────────────────────────────────────
+
+model PartnerGroup {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  signupUrl   String?  @map("signup_url")
+  isDefault   Boolean  @default(false) @map("is_default")
+  commissionRate Float? @map("commission_rate")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("partner_groups")
+}
+
+// ───────────────────────────────────────────────
+// Payouts
+// ───────────────────────────────────────────────
+
+model Payout {
+  id          String   @id @default(cuid())
+  affiliateId String   @map("affiliate_id")
+  userId      String?  @map("user_id")
+  amountCents Int      @default(0) @map("amount_cents")
+  method      String   @default("bank_transfer")
+  status      String   @default("PENDING")
+  processedAt DateTime? @map("processed_at")
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user        User?        @relation(fields: [userId], references: [id])
+  commissions Commission[]
+
+  @@index([affiliateId])
+  @@index([status])
+  @@map("payouts")
+}
+
+// ───────────────────────────────────────────────
+// Coupons & Invoices
+// ───────────────────────────────────────────────
+
+model Coupon {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  description   String?
+  discountType  String    @map("discount_type") // percentage, fixed
+  discountValue Float     @map("discount_value")
+  currency      String    @default("BRL")
+  maxUses       Int       @default(0) @map("max_uses")
+  usedCount     Int       @default(0) @map("used_count")
+  minimumAmount Int?      @map("minimum_amount")
+  affiliateId   String?   @map("affiliate_id")
+  startsAt      DateTime? @map("starts_at")
+  expiresAt     DateTime? @map("expires_at")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdBy     String?   @map("created_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("coupons")
+}
+
+model Invoice {
+  id            String    @id @default(cuid())
+  affiliateId   String    @map("affiliate_id")
+  invoiceNumber String?   @map("invoice_number")
+  payoutId      String?   @map("payout_id")
+  amountCents   Int       @default(0) @map("amount_cents")
+  taxCents      Int       @default(0) @map("tax_cents")
+  totalCents    Int       @default(0) @map("total_cents")
+  lineItems     Json      @default("[]") @map("line_items")
+  billingInfo   Json      @default("{}") @map("billing_info")
+  notes         String?
+  status        String    @default("PENDING")
+  issuedAt      DateTime? @map("issued_at")
+  dueAt         DateTime? @map("due_at")
+  paidAt        DateTime? @map("paid_at")
+  metadata      Json      @default("{}")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([affiliateId])
+  @@map("invoices")
+}
+
+// ───────────────────────────────────────────────
+// Integration Settings
+// ───────────────────────────────────────────────
+
+model IntegrationSettings {
+  id             String   @id @default(cuid())
+  userId         String   @unique @map("user_id")
+  provider       String   @default("refferq")
+  apiKey         String?  @map("api_key")
+  publicKey      String?  @map("public_key")
+  webhookUrl     String?  @map("webhook_url")
+  trackingScript String?  @map("tracking_script")
+  settings       Json     @default("{}")
+  config         Json     @default("{}")
+  platform       String   @default("refferq")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("integration_settings")
+}
+
+// ───────────────────────────────────────────────
+// Program
+// ───────────────────────────────────────────────
+
+model Program {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  description     String?
+  commissionRate  Float    @default(20) @map("commission_rate")
+  commissionType  String   @default("PERCENTAGE") @map("commission_type")
+  cookieDuration  Int      @default(30) @map("cookie_duration")
+  currency        String   @default("BRL")
+  autoApprove     Boolean  @default(false) @map("auto_approve")
+  minPayoutCents  Int      @default(100000) @map("min_payout_cents")
+  payoutFrequency String   @default("MONTHLY") @map("payout_frequency")
+  termsUrl        String?  @map("terms_url")
+  logoUrl         String?  @map("logo_url")
+  brandColor      String?  @default("#10b981") @map("brand_color")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("programs")
+}
+
+// ───────────────────────────────────────────────
+// Resources (marketing materials)
+// ───────────────────────────────────────────────
+
+model Resource {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  type        String   // pdf, image, link, video
+  url         String?
+  fileUrl     String?  @map("file_url")
+  fileName    String?  @map("file_name")
+  fileSize    Int?     @map("file_size")
+  mimeType    String?  @map("mime_type")
+  category    String?  @map("category")
+  tags        Json     @default("[]")
+  createdBy   String?  @map("created_by")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("resources")
+}
+
+// ───────────────────────────────────────────────
+// Team Members
+// ───────────────────────────────────────────────
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  role      String   @default("MEMBER")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("team_members")
+}
+
+// ───────────────────────────────────────────────
+// Reports
+// ───────────────────────────────────────────────
+
+model ScheduledReport {
+  id          String          @id @default(cuid())
+  name        String
+  reportType  String          @map("report_type") // leads, traffic, conversions, revenue
+  frequency   ReportFrequency @default(WEEKLY)
+  recipients  Json            @default("[]")
+  filters     Json            @default("{}")
+  format      String          @default("csv")
+  isActive    Boolean         @default(true) @map("is_active")
+  lastRunAt   DateTime?       @map("last_run_at")
+  nextRunAt   DateTime?       @map("next_run_at")
+  createdBy   String          @map("created_by")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  @@map("scheduled_reports")
+}
+
+model SavedReport {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  reportType  String   @map("report_type")
+  columns     Json     @default("[]")
+  filters     Json     @default("{}")
+  sortBy      String?  @map("sort_by")
+  sortOrder   String?  @default("desc") @map("sort_order")
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("saved_reports")
+}
+
+// ───────────────────────────────────────────────
+// Enums
+// ───────────────────────────────────────────────
+
+enum ReferralStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum Role {
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING
+}
+
+enum LeadStatus {
+  NEW
+  ACTIVE
+  INACTIVE
+  CHURNED
+}
+
+enum PostbackEventType {
+  DEPOSIT
+  REGISTRATION
+  BET
+  WITHDRAWAL
+  FTD
+  REDEPOSIT
+  RECOVERY
+}
+
+enum PostbackStatus {
+  PENDING
+  PROCESSED
+  DUPLICATE
+  ERROR
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+  DELETED
+}
+
+enum WhatsAppMessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum EmailTemplateType {
+  WELCOME_EMAIL
+  NEW_LEAD
+  LEAD_CONVERTED
+  LEAD_CHURNED
+  SYSTEM_NOTIFICATION
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+  BOUNCED
+}
+
+enum WebhookStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  RETRYING
+}
+
+enum ReportFrequency {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
