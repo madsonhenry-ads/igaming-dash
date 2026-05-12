@@ -1,0 +1,20 @@
+{
+  "name": "@dashigaming/whatsapp",
+  "version": "1.0.0",
+  "description": "WhatsApp Service for iGaming Lead Recovery",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "fastify": "^4.26.0",
+    "@fastify/cors": "^9.0.1",
+    "ioredis": "^5.3.2",
+    "pg": "^8.11.3",
+    "axios": "^1.6.7",
+    "node-cron": "^3.0.3",
+    "zod": "^3.22.4"
+  }
+}
