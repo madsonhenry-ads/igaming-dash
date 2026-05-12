@@ -507,6 +507,10 @@ model CommissionRule {
   description     String?
   rate            Float    @default(0)
   eventType       String   @map("event_type") // ftd, deposit, recovery
+  type            String   @default("percentage") // percentage, fixed
+  value           Float    @default(0)
+  conditions      Json     @default("{}")
+  isDefault       Boolean  @default(false) @map("is_default")
   isActive        Boolean  @default(true) @map("is_active")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
