@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
       const partnerGroup = await prisma.partnerGroup.findUnique({
         where: { id: affiliate.partnerGroupId }
       });
-      if (partnerGroup) {
+      if (partnerGroup && partnerGroup.commissionRate !== null) {
         commissionRate = partnerGroup.commissionRate;
       }
     }
