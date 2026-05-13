@@ -46,6 +46,7 @@ COPY --from=builder /app/prisma ./prisma
 # Copy startup script and scripts for seeding
 COPY --from=builder /app/startup.sh ./startup.sh
 COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/src ./src
 
 # Install tools and fix permissions in one layer
 RUN npm install prisma@6.16.3 tsx && \
