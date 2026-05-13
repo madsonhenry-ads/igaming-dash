@@ -193,7 +193,6 @@ export async function POST(request: NextRequest) {
     // Also create a commission record for tracking
     await prisma.conversion.create({
       data: {
-        affiliateId: referral.affiliateId,
         referralId: referral.id,
         eventType: 'PURCHASE',
         amountCents,
