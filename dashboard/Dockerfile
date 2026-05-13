@@ -45,10 +45,11 @@ COPY --from=builder /app/prisma ./prisma
 
 # Copy startup script
 COPY --from=builder /app/startup.sh ./startup.sh
-RUN chmod +x ./startup.sh
 
-# Pre-install tools locally in the runner stage to avoid startup downloads
-RUN npm install prisma@6.16.3 tsx
+# Install tools and fix permissions in one layer
+RUN npm install prisma@6.16.3 tsx && \
+    chmod +x ./startup.sh && \
+    chown -R nextjs:nodejs /app
 
 USER nextjs
 
