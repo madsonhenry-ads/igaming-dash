@@ -2,8 +2,8 @@
 set -e
 
 echo "=> Running Prisma migrations..."
-npx prisma generate
-npx prisma db push --accept-data-loss
+npx prisma@6.16.3 generate
+npx prisma@6.16.3 db push --accept-data-loss
 
 echo "=> Starting application..."
 exec node server.js
