@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
           name,
           type,
           value,
-          conditions: conditions || {},
+          conditions: (conditions || {}) as any,
           isDefault: isDefault || false,
           isActive: true
         }
