@@ -37,33 +37,30 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { email, name, role, permissions } = body;
+    const { userId, role } = body;
 
-    if (!email || !name) {
-      return NextResponse.json({ error: 'Email and name are required' }, { status: 400 });
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    // Check if already invited
-    const existing = await prisma.teamMember.findUnique({ where: { email: email.toLowerCase() } });
+    // Check if already a team member
+    const existing = await prisma.teamMember.findUnique({ where: { userId } });
     if (existing) {
-      return NextResponse.json({ error: 'This email has already been invited' }, { status: 400 });
+      return NextResponse.json({ error: 'This user is already a team member' }, { status: 400 });
     }
 
     const member = await prisma.teamMember.create({
       data: {
-        email: email.toLowerCase(),
-        name,
-        role: role || 'VIEWER',
-        permissions: permissions || [],
-        invitedBy: user.id,
-        status: 'PENDING',
+        userId,
+        role: role || 'MEMBER',
+        isActive: true,
       },
     });
 
     return NextResponse.json({ success: true, member });
   } catch (error) {
     console.error('Admin team POST error:', error);
-    return NextResponse.json({ error: 'Failed to invite team member' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to add team member' }, { status: 500 });
   }
 }
 
@@ -74,14 +71,14 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { id } = body;
+    const { id, role, isActive } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Team member ID required' }, { status: 400 });
     }
 
     // Only allow specific fields (prevent mass assignment)
-    const allowedFields = ['name', 'email', 'role', 'permissions', 'isActive'];
+    const allowedFields = ['role', 'isActive'];
     const updates: Record<string, any> = {};
     for (const key of allowedFields) {
       if (key in body && body[key] !== undefined) updates[key] = body[key];
