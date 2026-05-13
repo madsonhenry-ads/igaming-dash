@@ -194,14 +194,14 @@ export async function POST(request: NextRequest) {
     await prisma.conversion.create({
       data: {
         referralId: referral.id,
-        eventType: 'PURCHASE',
         amountCents,
         status: 'APPROVED',
         currency: 'INR',
         eventMetadata: {
           transactionId: transaction.id,
           commissionCents,
-          commissionRate
+          commissionRate,
+          eventType: 'PURCHASE'
         }
       }
     });
