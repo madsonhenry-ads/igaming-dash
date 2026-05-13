@@ -2,7 +2,7 @@
 set -e
 
 echo "=> Running Prisma migrations..."
-prisma db push --accept-data-loss
+npx --no-install prisma db push --accept-data-loss
 npm run db:seed
 
 echo "=> Starting application..."
