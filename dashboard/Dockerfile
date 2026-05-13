@@ -43,8 +43,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Copy Prisma schema + migrations (needed for runtime migrations)
 COPY --from=builder /app/prisma ./prisma
 
-# Copy startup script
+# Copy startup script and scripts for seeding
 COPY --from=builder /app/startup.sh ./startup.sh
+COPY --from=builder /app/scripts ./scripts
 
 # Install tools and fix permissions in one layer
 RUN npm install prisma@6.16.3 tsx && \
