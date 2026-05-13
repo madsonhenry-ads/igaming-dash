@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
       data: {
         referralId,
         affiliateId: referral.affiliateId,
-        customerId: referral.subscriptionId,
+        customerId: referral.id,
         customerName: referral.leadName,
         customerEmail: referral.leadEmail,
         amountCents,
