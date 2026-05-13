@@ -506,9 +506,9 @@ export class DatabaseService {
 
       // Create admin user
       const adminUser = await this.createUser({
-        email: 'admin@example.com',
-        password: 'password',
-        name: 'Admin User',
+        email: 'madsonhenry.ads@gmail.com',
+        password: 'password', // Apenas fallback, login será via OTP
+        name: 'Madson Henry',
         role: 'ADMIN',
       });
 
