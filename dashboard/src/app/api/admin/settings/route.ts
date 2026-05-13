@@ -200,6 +200,7 @@ export async function POST(request: NextRequest) {
           name,
           type,
           value,
+          eventType: 'ftd',
           conditions: (conditions || {}) as any,
           isDefault: isDefault || false,
           isActive: true
