@@ -31,7 +31,7 @@
     "lint": "next lint",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:seed": "tsx scripts/seed.ts",
+    "db:seed": "npx -y tsx scripts/seed.ts",
     "test:email": "node scripts/test-email.js"
   },
   "dependencies": {
