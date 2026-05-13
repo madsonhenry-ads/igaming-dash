@@ -57,7 +57,7 @@ export async function GET(
 
     // Find affiliate by referral code using Prisma
     const affiliate = await prisma.affiliate.findUnique({
-      where: { referralCode },
+      where: { code: referralCode },
       include: { user: true }
     });
 
@@ -100,12 +100,6 @@ export async function GET(
           leadName: 'Click Visitor',
           leadEmail: `click-${attributionKey}@tracking.internal`,
           status: 'PENDING',
-          metadata: {
-            source: 'referral_link',
-            attribution_key: attributionKey,
-            target_url: targetUrl,
-            params: Object.fromEntries(searchParams.entries()),
-          }
         }
       });
     }
@@ -113,20 +107,12 @@ export async function GET(
     // Track the click in ReferralClick table (always track, even if suspicious)
     await prisma.referralClick.create({
       data: {
-        referralId: referral.id,
-        ipAddress: cleanIP,
+        affiliateId: affiliate.id,
+        ip: cleanIP,
         userAgent: userAgent,
-        referer: referer,
-        metadata: {
-          attribution_key: attributionKey,
-          target_url: targetUrl,
-          is_deep_link: !!searchParams.get('dest'),
-          fraud_check: {
-            is_suspicious: fraudResult.isSuspicious,
-            risk_score: fraudResult.riskScore,
-            reasons: fraudResult.reasons,
-          },
-        }
+        referrer: referer,
+        fraudScore: fraudResult?.riskScore || 0,
+        isFraud: fraudResult?.isSuspicious || false,
       }
     });
 

@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
     // Find affiliate by referral code
     const affiliate = await prisma.affiliate.findUnique({
-      where: { referralCode },
+      where: { code: referralCode },
       include: {
         user: {
           select: {

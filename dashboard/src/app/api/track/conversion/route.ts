@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
 
     // Find affiliate by referral code
     const affiliate = await prisma.affiliate.findUnique({
-      where: { referralCode },
+      where: { code: referralCode },
       include: {
         user: {
           select: {
@@ -98,7 +98,6 @@ export async function POST(req: NextRequest) {
           leadName: customerName || 'Unknown Customer',
           affiliateId: affiliate.id,
           status: 'APPROVED',
-          metadata: metadata || {},
         },
       });
     } else if (referral && referral.status === 'PENDING') {
@@ -107,10 +106,6 @@ export async function POST(req: NextRequest) {
         where: { id: referral.id },
         data: {
           status: 'APPROVED',
-          metadata: {
-            ...(referral.metadata as object),
-            ...metadata,
-          },
         },
       });
     }
@@ -118,18 +113,23 @@ export async function POST(req: NextRequest) {
     // Create conversion record
     const amountCents = Math.round((amount || 0) * 100);
 
+    if (!referral) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to create referral for conversion' },
+        { status: 400 }
+      );
+    }
+
     const conversion = await prisma.conversion.create({
       data: {
-        affiliateId: affiliate.id,
-        referralId: referral?.id || null,
-        eventType: 'PURCHASE',
+        referralId: referral.id,
         amountCents,
-        currency: currency || 'USD',
         status: 'PENDING',
-        eventMetadata: {
+        metadata: {
           orderId: orderId || null,
           url: url || null,
           timestamp: timestamp || new Date().toISOString(),
+          currency: currency || 'USD',
           ...metadata,
         },
       },
@@ -151,11 +151,11 @@ export async function POST(req: NextRequest) {
       conversion: {
         id: conversion.id,
         amount: amountCents / 100,
-        currency: conversion.currency,
+        currency: (conversion.metadata as any)?.currency || currency || 'USD',
       },
       affiliate: {
         name: affiliate.user.name,
-        code: affiliate.referralCode,
+        code: affiliate.code,
       },
     });
   } catch (error) {

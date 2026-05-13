@@ -437,14 +437,22 @@ export class DatabaseService {
   async createFacebookCampaign(campaignData: {
     campaignId: string;
     campaignName: string;
-    status?: string;
+    status?: 'ACTIVE' | 'PAUSED' | 'ARCHIVED' | 'DELETED';
     startDate?: Date | null;
     endDate?: Date | null;
     budget?: number | null;
     currency?: string;
   }) {
     return await prisma.facebookCampaign.create({
-      data: campaignData,
+      data: {
+        campaignId: campaignData.campaignId,
+        campaignName: campaignData.campaignName,
+        status: (campaignData.status || 'ACTIVE') as any,
+        startDate: campaignData.startDate,
+        endDate: campaignData.endDate,
+        budget: campaignData.budget ? parseFloat(campaignData.budget.toString()) : undefined,
+        currency: campaignData.currency,
+      },
     });
   }
 

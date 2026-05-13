@@ -9,7 +9,7 @@ export const leadCreateSchema = z.object({
   source: z.string().optional().nullable(),
   campaignId: z.string().optional().nullable(),
   tags: z.array(z.string()).optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 // Lead Update Validation
@@ -18,7 +18,7 @@ export const leadUpdateSchema = z.object({
   phone: z.string().optional().nullable(),
   name: z.string().min(2).optional().nullable(),
   status: z.enum(['NEW', 'ACTIVE', 'INACTIVE', 'CHURNED']).optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 // Tag Management Validation
@@ -34,7 +34,7 @@ export const postbackSchema = z.object({
   event: z.string().min(1, 'Event type is required'),
   amount: z.number().optional(),
   currency: z.string().default('BRL'),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
   timestamp: z.string().datetime().optional(),
 });
 

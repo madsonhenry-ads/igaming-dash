@@ -77,17 +77,20 @@ export async function POST(request: NextRequest) {
         }
 
         // ─── Find Related Conversions ──────────────────────────────
-        // Strategy: find conversions by customer email in event_metadata
+        // Strategy: find conversions by customer email in metadata
         const conversions = await prisma.conversion.findMany({
             where: {
-                eventMetadata: {
-                    path: ['customerEmail'],
-                    equals: customer_email,
-                },
+                referral: {
+                    leadEmail: customer_email
+                }
             },
             include: {
                 commissions: true,
-                affiliate: true,
+                referral: {
+                    include: {
+                        affiliate: true
+                    }
+                }
             },
             orderBy: { createdAt: 'desc' },
         });
@@ -120,7 +123,10 @@ export async function POST(request: NextRequest) {
                         where: { id: commission.id },
                         data: {
                             status: 'CANCELLED',
-                            clawbackNote: `Refund: ${reason}. External ID: ${external_id || 'N/A'}`,
+                            metadata: {
+                                clawbackNote: `Refund: ${reason}. External ID: ${external_id || 'N/A'}`,
+                                refundedAt: new Date().toISOString(),
+                            },
                         },
                     });
 
@@ -132,7 +138,10 @@ export async function POST(request: NextRequest) {
                         where: { id: commission.id },
                         data: {
                             status: 'CANCELLED',
-                            clawbackNote: `Refund clawback: ${reason}. External ID: ${external_id || 'N/A'}`,
+                            metadata: {
+                                clawbackNote: `Refund clawback: ${reason}. External ID: ${external_id || 'N/A'}`,
+                                refundedAt: new Date().toISOString(),
+                            },
                         },
                     });
 
@@ -152,7 +161,10 @@ export async function POST(request: NextRequest) {
                         where: { id: commission.id },
                         data: {
                             status: 'CLAWBACK',
-                            clawbackNote: `Paid commission clawback: ${reason}. Will be deducted from next payout. External ID: ${external_id || 'N/A'}`,
+                            metadata: {
+                                clawbackNote: `Paid commission clawback: ${reason}. Will be deducted from next payout. External ID: ${external_id || 'N/A'}`,
+                                clawbackedAt: new Date().toISOString(),
+                            },
                         },
                     });
 
@@ -197,7 +209,7 @@ export async function POST(request: NextRequest) {
 
         // ─── Send email notification to affected affiliates ────────
         try {
-            const affectedAffiliateIds = [...new Set(conversions.map(c => c.affiliateId))];
+            const affectedAffiliateIds = [...new Set(conversions.map(c => c.referral.affiliate.id))];
             for (const affId of affectedAffiliateIds) {
                 const affiliateUser = await prisma.user.findFirst({
                     where: { affiliate: { id: affId } },

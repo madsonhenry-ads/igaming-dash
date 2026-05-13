@@ -47,8 +47,8 @@ export async function checkFraud({
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recentClicksFromIP = await prisma.referralClick.count({
         where: {
-            ipAddress,
-            createdAt: { gte: oneHourAgo },
+            ip: ipAddress,
+            clickedAt: { gte: oneHourAgo },
         },
     });
 
@@ -61,11 +61,9 @@ export async function checkFraud({
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const clicksForAffiliateFromIP = await prisma.referralClick.count({
         where: {
-            ipAddress,
-            createdAt: { gte: oneDayAgo },
-            referral: {
-                affiliateId,
-            },
+            ip: ipAddress,
+            clickedAt: { gte: oneDayAgo },
+            affiliateId,
         },
     });
 
@@ -91,20 +89,14 @@ export async function checkFraud({
 }
 
 /**
- * Logs a fraud event to the referralClick metadata.
+ * Logs a fraud event to the referralClick by updating fraud fields.
  */
 export async function logFraudEvent(clickId: string, fraudResult: FraudCheckResult) {
     await prisma.referralClick.update({
         where: { id: clickId },
         data: {
-            metadata: {
-                fraud_check: {
-                    is_suspicious: fraudResult.isSuspicious,
-                    risk_score: fraudResult.riskScore,
-                    reasons: fraudResult.reasons,
-                    checked_at: new Date().toISOString(),
-                },
-            },
+            fraudScore: fraudResult.riskScore,
+            isFraud: fraudResult.isSuspicious,
         },
     });
 }

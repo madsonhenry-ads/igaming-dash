@@ -41,6 +41,20 @@ export async function GET(request: NextRequest) {
 
     // Get all commission rules
     const commissionRules = await prisma.commissionRule.findMany({
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        rate: true,
+        eventType: true,
+        type: true,
+        value: true,
+        conditions: true,
+        isDefault: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true
+      },
       orderBy: {
         createdAt: 'desc'
       }

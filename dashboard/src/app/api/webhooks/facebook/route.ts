@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   const verifyToken = process.env.FACEBOOK_WEBHOOK_VERIFY_TOKEN;
 
   if (mode === 'subscribe' && token === verifyToken) {
-    return NextResponse.text(challenge, { status: 200 });
+    return new Response(challenge, { status: 200 });
   }
 
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

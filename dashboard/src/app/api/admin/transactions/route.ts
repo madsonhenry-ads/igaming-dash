@@ -196,8 +196,8 @@ export async function POST(request: NextRequest) {
         referralId: referral.id,
         amountCents,
         status: 'APPROVED',
-        currency: 'INR',
-        eventMetadata: {
+        metadata: {
+          currency: 'INR',
           transactionId: transaction.id,
           commissionCents,
           commissionRate,
@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
         const { emailService } = await import('@/lib/email');
         await emailService.sendTransactionCreatedEmail(affiliateUser.email, {
           affiliateName: affiliate.name || affiliateUser.name || 'Partner',
-          customerName: referral.leadName,
+          customerName: referral.leadName || 'Customer',
           amountCents,
           commissionCents,
           commissionRate,

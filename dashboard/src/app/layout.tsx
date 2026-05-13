@@ -22,7 +22,6 @@ export default async function RootLayout({
 
   // Create dynamic styles based on settings
   const dynamicStyles = {
-    '--primary': settings?.brandButtonColor ? hexToHSL(settings.brandButtonColor) : undefined,
     '--radius': '0.5rem',
   } as React.CSSProperties;
 

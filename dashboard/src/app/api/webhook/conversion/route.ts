@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, prisma } from '@/lib/prisma';
+import { logAuditAction } from '@/lib/audit';
 import crypto from 'crypto';
 
 // ─── Webhook Signature Verification ────────────────────────────
@@ -87,7 +88,13 @@ export async function POST(request: NextRequest) {
 
     // Fallback to referral code
     if (!affiliate && referral_code) {
-      affiliate = await db.getAffiliateByReferralCode(referral_code);
+      const affiliateData = await prisma.affiliate.findUnique({
+        where: { code: referral_code },
+        include: { user: true }
+      });
+      if (affiliateData) {
+        affiliate = affiliateData;
+      }
       attributionMethod = 'referral_code';
     }
 
@@ -108,30 +115,61 @@ export async function POST(request: NextRequest) {
     }
 
     // Create conversion record
-    const conversion = await db.createConversion({
-      affiliateId: affiliate.id,
-      eventType: event_type,
-      amountCents: amount_cents || 0,
-      currency,
-      eventMetadata: {
-        ...event_metadata,
-        customerEmail: customer_email,
-        attributionMethod,
-        attributionKey: attribution_key,
-        referralCode: referral_code,
+    // First create/find referral if needed
+    let referral = await prisma.referral.findFirst({
+      where: {
+        affiliateId: affiliate.id,
+        leadEmail: customer_email
+      }
+    });
+
+    if (!referral && customer_email) {
+      referral = await prisma.referral.create({
+        data: {
+          affiliateId: affiliate.id,
+          leadEmail: customer_email,
+          status: 'APPROVED'
+        }
+      });
+    }
+
+    if (!referral) {
+      return NextResponse.json({
+        success: true,
+        message: 'Conversion logged (no referral found)',
+        attributed: false,
+      });
+    }
+
+    const conversion = await prisma.conversion.create({
+      data: {
+        referralId: referral.id,
+        amountCents: amount_cents || 0,
+        status: 'PENDING',
+        metadata: {
+          ...event_metadata,
+          customerEmail: customer_email,
+          attributionMethod,
+          attributionKey: attribution_key,
+          referralCode: referral_code,
+          eventType: event_type,
+          currency
+        },
       },
     });
 
     // Calculate commission
-    const commissionRules = await db.getCommissionRules();
+    const commissionRules = await prisma.commissionRule.findMany({
+      where: { isActive: true }
+    });
     let applicableRule = commissionRules.find((rule: any) => rule.isDefault);
 
     const commissionRate = applicableRule?.value || 15;
     let commissionAmount = 0;
 
-    if (applicableRule?.type === 'PERCENTAGE' && amount_cents) {
+    if (applicableRule?.type === 'percentage' && amount_cents) {
       commissionAmount = Math.floor((amount_cents * commissionRate) / 100);
-    } else if (applicableRule?.type === 'FIXED') {
+    } else if (applicableRule?.type === 'fixed') {
       commissionAmount = commissionRate;
     }
 
@@ -147,7 +185,7 @@ export async function POST(request: NextRequest) {
       data: {
         conversionId: conversion.id,
         affiliateId: affiliate.id,
-        userId: affiliate.userId,
+        referralId: referral.id,
         amountCents: commissionAmount,
         rate: commissionRate,
         status: 'PENDING',
@@ -160,7 +198,7 @@ export async function POST(request: NextRequest) {
     // This protects against refunds during the hold period.
 
     // Log audit event
-    await db.createAuditLog({
+    await logAuditAction({
       actorId: 'system',
       action: 'conversion_tracked',
       objectType: 'conversion',
