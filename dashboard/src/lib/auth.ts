@@ -128,7 +128,7 @@ export async function verifyAuth(request: NextRequest): Promise<JWTPayload | nul
     }
 
     const { payload } = await jwtVerify(token, JWT_SECRET);
-    return payload as JWTPayload;
+    return payload as unknown as JWTPayload;
   } catch (error) {
     return null;
   }
