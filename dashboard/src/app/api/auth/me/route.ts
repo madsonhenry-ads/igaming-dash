@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getUserIdFromRequest } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')!;
+    // Get userId from JWT token in cookie
+    const userId = await getUserIdFromRequest(request);
 
-    // Get user from database to ensure they still exist and get latest data
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
 
-    // Get user from database to ensure they still exist and get latest data
+    // Get user from database
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {

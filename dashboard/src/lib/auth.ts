@@ -2,6 +2,8 @@
 import { type User, Role, UserStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import * as bcrypt from 'bcryptjs';
+import { NextRequest } from 'next/server';
+import { jwtVerify } from 'jose';
 
 export interface AuthSession {
   user: User;
@@ -98,3 +100,54 @@ class AuthService {
 }
 
 export const auth = new AuthService();
+
+// JWT verification helpers for API routes
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || 'your-secret-key-change-in-production'
+);
+
+export interface JWTPayload {
+  userId: string;
+  email: string;
+  role: string;
+  name: string;
+  iat: number;
+  exp: number;
+}
+
+/**
+ * Verify JWT token from cookie and return payload
+ * Returns null if token is invalid or missing
+ */
+export async function verifyAuth(request: NextRequest): Promise<JWTPayload | null> {
+  try {
+    const token = request.cookies.get('auth-token')?.value;
+
+    if (!token) {
+      return null;
+    }
+
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    return payload as JWTPayload;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Helper to get userId from JWT token
+ * Returns null if token is invalid
+ */
+export async function getUserIdFromRequest(request: NextRequest): Promise<string | null> {
+  const payload = await verifyAuth(request);
+  return payload?.userId || null;
+}
+
+/**
+ * Helper to check if user is ADMIN
+ * Returns false if token is invalid or user is not admin
+ */
+export async function isAdminUser(request: NextRequest): Promise<boolean> {
+  const payload = await verifyAuth(request);
+  return payload?.role === 'ADMIN';
+}

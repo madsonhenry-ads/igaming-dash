@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
+// Use same JWT_SECRET as other parts of the app
 const JWT_SECRET = new TextEncoder().encode(
-    process.env.JWT_SECRET!
+    process.env.JWT_SECRET || 'your-secret-key-change-in-production'
 );
 
 export async function middleware(request: NextRequest) {
@@ -52,12 +53,8 @@ export async function middleware(request: NextRequest) {
             return NextResponse.redirect(new URL('/login', request.url));
         }
 
-        // 5. Inject user info into headers for API usage
-        const response = NextResponse.next();
-        response.headers.set('x-user-id', payload.userId as string);
-        response.headers.set('x-user-role', userRole);
-
-        return response;
+        // 5. No need to inject headers since APIs now read cookies directly
+        return NextResponse.next();
     } catch (error) {
         if (pathname.startsWith('/api/')) {
             return NextResponse.json(
@@ -76,6 +73,5 @@ export const config = {
         '/api/admin/set-admin',
         '/admin/:path*',
         '/api/admin/:path*',
-        '/api/auth/me',
     ],
 };
