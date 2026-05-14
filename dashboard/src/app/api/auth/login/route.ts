@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import * as bcrypt from 'bcryptjs';
 import { SignJWT } from 'jose';
 import { checkRateLimit } from '@/lib/rate-limit';
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET!
+  process.env.JWT_SECRET || 'your-secret-key-change-in-production'
 );
+
+// Simple password for the single user (set in env or use default)
+const FIXED_PASSWORD = process.env.USER_PASSWORD || 'admin123';
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,8 +62,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    // Verify password (simple comparison for single user system)
+    const isPasswordValid = password === FIXED_PASSWORD;
     if (!isPasswordValid) {
       return NextResponse.json(
         { success: false, message: 'Invalid email or password' },

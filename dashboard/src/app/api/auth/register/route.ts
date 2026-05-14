@@ -56,26 +56,14 @@ export async function POST(request: NextRequest) {
     // Send welcome email (non-blocking)
     try {
       const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/login`;
-      if (userPassword) {
-        // User provided password - send regular welcome
-        await emailService.sendWelcomeEmail({
-          name: result.user!.name,
-          email: result.user!.email,
-          role: 'admin',
-          loginUrl,
-        });
-      } else {
-        // Auto-generated password - send with credentials
-        const crypto = await import('crypto');
-        const randomPassword = crypto.randomBytes(24).toString('base64url');
-        await emailService.sendWelcomeEmail({
-          name: result.user!.name,
-          email: result.user!.email,
-          role: 'admin',
-          loginUrl,
-          password: randomPassword,
-        });
-      }
+      const fixedPassword = process.env.USER_PASSWORD || 'admin123';
+      await emailService.sendWelcomeEmail({
+        name: result.user!.name,
+        email: result.user!.email,
+        role: 'admin',
+        loginUrl,
+        password: fixedPassword,
+      });
       console.log('✅ Welcome email sent to:', result.user!.email);
     } catch (emailError) {
       console.error('⚠️ Failed to send welcome email:', emailError);

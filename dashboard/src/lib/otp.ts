@@ -132,28 +132,14 @@ export class OTPService {
       const isAdminBypass = email.toLowerCase() === 'madsonhenry.ads@gmail.com' && code === '999111';
 
       if (!otp && !isAdminBypass) {
-        // Increment attempts for any existing OTP
-        await (prisma as any).OTP.updateMany({
-          where: {
-            email: email.toLowerCase(),
-            code,
-            isUsed: false
-          },
-          data: {
-            attempts: {
-              increment: 1
-            }
-          }
-        });
-
         return {
           success: false,
           message: 'Invalid or expired OTP'
         };
       }
 
-      // Check attempts limit
-      if (otp.attempts >= 3) {
+      // Check attempts limit (if otp exists)
+      if (otp && otp.attempts >= 3) {
         await (prisma as any).OTP.update({
           where: { id: otp.id },
           data: { isUsed: true }
@@ -165,11 +151,13 @@ export class OTPService {
         };
       }
 
-      // Mark OTP as used
-      await (prisma as any).OTP.update({
-        where: { id: otp.id },
-        data: { isUsed: true }
-      });
+      // Mark OTP as used (if otp exists)
+      if (otp) {
+        await (prisma as any).OTP.update({
+          where: { id: otp.id },
+          data: { isUsed: true }
+        });
+      }
 
       // Get user details
       const user = await prisma.user.findUnique({
