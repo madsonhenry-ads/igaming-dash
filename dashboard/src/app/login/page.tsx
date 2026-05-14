@@ -25,10 +25,12 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Login form submitted:', { email, password });
     setError('');
     setLoading(true);
 
     try {
+      console.log('Sending login request...');
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -36,19 +38,24 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
+      console.log('Response status:', res.status);
       const data = await res.json();
+      console.log('Response data:', data);
 
       if (res.ok && data.success) {
         const user = data.user;
+        console.log('Login successful, redirecting to:', user.role === 'ADMIN' ? '/admin' : '/affiliate');
         if (user.role === 'ADMIN') {
           router.push('/admin');
         } else {
           router.push('/affiliate');
         }
       } else {
+        console.error('Login failed:', data.error);
         setError(data.error || 'Login failed');
       }
     } catch (_e) {
+      console.error('Login error:', _e);
       setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);

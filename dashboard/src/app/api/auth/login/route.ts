@@ -12,6 +12,8 @@ const FIXED_PASSWORD = process.env.USER_PASSWORD || 'admin123';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('=== LOGIN API REQUEST ===');
+
     // Rate limit: 5 login attempts per minute per IP
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       || request.headers.get('x-real-ip')
@@ -34,6 +36,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, password } = body;
 
+    console.log('Login attempt:', { email, passwordLength: password?.length, fixedPasswordLength: FIXED_PASSWORD?.length });
+
     // Validate required fields
     if (!email || !password) {
       return NextResponse.json(
@@ -46,6 +50,8 @@ export async function POST(request: NextRequest) {
     const user = await prisma.user.findUnique({
       where: { email: email.toLowerCase().trim() }
     });
+
+    console.log('User found:', !!user, user?.status);
 
     if (!user) {
       return NextResponse.json(
@@ -64,6 +70,8 @@ export async function POST(request: NextRequest) {
 
     // Verify password (simple comparison for single user system)
     const isPasswordValid = password === FIXED_PASSWORD;
+    console.log('Password valid:', isPasswordValid, { provided: password, expected: FIXED_PASSWORD });
+
     if (!isPasswordValid) {
       return NextResponse.json(
         { success: false, message: 'Invalid email or password' },
@@ -95,10 +103,11 @@ export async function POST(request: NextRequest) {
     // Set auth cookie
     response.cookies.set('auth-token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: true, // Always use secure in production
       sameSite: 'lax',
       maxAge: 86400, // 24 hours
-      path: '/'
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? undefined : undefined
     });
 
     return response;
