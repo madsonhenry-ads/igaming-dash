@@ -162,6 +162,9 @@ export interface AppConfig {
     securityToken?: string;
     allowedIps?: string[];
   };
+  database: {
+    url: string;
+  };
   dedup: {
     ttlMinutes: number;
   };

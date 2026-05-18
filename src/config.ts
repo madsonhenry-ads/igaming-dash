@@ -25,6 +25,9 @@ export function loadConfig(): AppConfig {
       securityToken: optionalEnv('POSTBACK_SECURITY_TOKEN'),
       allowedIps: optionalEnv('POSTBACK_ALLOWED_IPS')?.split(',').map(s => s.trim()),
     },
+    database: {
+      url: requireEnv('DATABASE_URL'),
+    },
     dedup: {
       ttlMinutes: parseInt(optionalEnv('DEDUP_TTL_MINUTES', '1440')!, 10), // 24h default
     },

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { BetsalaPostback, MetaCapiEvent } from '../types';
 import { MetaCapiService } from '../integrations/metaCapi';
+import { DatabaseService } from '../database/service';
 import {
   validatePostback,
   mapEventType,
@@ -8,17 +9,17 @@ import {
   buildUserData,
   buildCustomData,
   buildEventSourceUrl,
+  extractValue,
 } from '../utils/normalization';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger();
 
-export function createPostbackRouter(metaCapi: MetaCapiService): Router {
+export function createPostbackRouter(metaCapi: MetaCapiService, db: DatabaseService): Router {
   const router = Router();
 
   /**
    * POST /api/postback
-   * Aceita parâmetros via query string ou body JSON.
    */
   router.post('/postback', async (req: Request, res: Response) => {
     await handlePostback(req, res);
@@ -26,7 +27,6 @@ export function createPostbackRouter(metaCapi: MetaCapiService): Router {
 
   /**
    * GET /api/postback
-   * Betsala pode enviar postbacks via GET.
    */
   router.get('/postback', async (req: Request, res: Response) => {
     await handlePostback(req, res);
@@ -34,8 +34,6 @@ export function createPostbackRouter(metaCapi: MetaCapiService): Router {
 
   async function handlePostback(req: Request, res: Response): Promise<void> {
     const startTime = Date.now();
-
-    // Extrair parâmetros (query string para GET/POST, body para POST JSON)
     const params: BetsalaPostback = { ...req.query, ...req.body };
 
     log.info(
@@ -50,7 +48,7 @@ export function createPostbackRouter(metaCapi: MetaCapiService): Router {
       'Postback recebido'
     );
 
-    // Validar postback
+    // Validar
     const validation = validatePostback(params);
     if (!validation.valid) {
       log.warn({ errors: validation.errors }, 'Postback inválido');
@@ -62,7 +60,7 @@ export function createPostbackRouter(metaCapi: MetaCapiService): Router {
       return;
     }
 
-    // Mapear tipo de evento
+    // Mapear evento
     const eventName = mapEventType(params.goal);
     if (!eventName) {
       log.warn({ goal: params.goal }, 'Tipo de evento desconhecido');
@@ -73,10 +71,18 @@ export function createPostbackRouter(metaCapi: MetaCapiService): Router {
       return;
     }
 
-    // Gerar event_id para deduplicação
+    // Gerar event_id
     const eventId = params.event_id || generateEventId(params, params.goal || 'unknown');
 
-    // Construir evento da Meta CAPI
+    // Salvar no banco
+    let postbackDbId: number | undefined;
+    try {
+      postbackDbId = await db.insertPostback(params);
+    } catch (dbError) {
+      log.warn({ error: dbError }, 'Erro ao salvar postback no banco (não crítico)');
+    }
+
+    // Construir evento Meta CAPI
     const event: MetaCapiEvent = {
       event_name: eventName,
       event_time: Math.floor(startTime / 1000),
@@ -88,7 +94,30 @@ export function createPostbackRouter(metaCapi: MetaCapiService): Router {
     };
 
     // Enviar para Meta CAPI
-    const result = await metaCapi.sendEvent(event);
+    const result = await metaCapi.sendEvent(event, 1, postbackDbId);
+
+    // Registrar no meta_capi_events
+    if (postbackDbId) {
+      try {
+        await db.insertMetaEvent(postbackDbId, event, result.sent ?? false, result, event);
+      } catch (dbError) {
+        log.warn({ error: dbError }, 'Erro ao salvar meta event no banco');
+      }
+    }
+
+    // Atualizar métricas
+    try {
+      const value = extractValue(params);
+      await db.updateDailyMetrics(
+        params.goal,
+        result.sent,
+        result.deduplicated,
+        value,
+        params.currency
+      );
+    } catch (dbError) {
+      log.warn({ error: dbError }, 'Erro ao atualizar métricas');
+    }
 
     // Log do resultado
     const duration = Date.now() - startTime;
@@ -104,7 +133,7 @@ export function createPostbackRouter(metaCapi: MetaCapiService): Router {
       'Postback processado'
     );
 
-    // Responder (sempre 200 para evitar retentativas da Betsala)
+    // Responder sempre 200
     res.status(200).json({
       status: 'received',
       event_id: eventId,

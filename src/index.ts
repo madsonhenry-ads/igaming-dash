@@ -6,6 +6,8 @@ import { MetaCapiService } from './integrations/metaCapi';
 import { createPostbackRouter } from './routes/postback';
 import { createSecurityMiddleware } from './middleware/validation';
 import { createLogger } from './utils/logger';
+import { runMigrations } from './database/migrations';
+import { databaseService } from './database/service';
 
 const log = createLogger();
 
@@ -15,8 +17,12 @@ async function main() {
     log.info('Inicializando servidor...');
     const config: AppConfig = loadConfig();
 
+    // Inicializar banco de dados
+    await runMigrations();
+    const db = databaseService;
+
     // Inicializar serviços
-    const metaCapi = new MetaCapiService(config);
+    const metaCapi = new MetaCapiService(config, db);
 
     // Criar app Express
     const app = express();
@@ -37,19 +43,28 @@ async function main() {
     });
 
     // Health check
-    app.get('/health', (_req, res) => {
-      const stats = metaCapi.getStats();
+    app.get('/health', async (_req, res) => {
+      const metaStats = metaCapi.getStats();
+      let dbStats: any = { connected: false };
+      try {
+        dbStats = await db.getStats();
+        dbStats.connected = true;
+      } catch (e) {
+        dbStats.connected = false;
+        dbStats.error = e instanceof Error ? e.message : String(e);
+      }
       res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
-        meta: stats,
+        meta: metaStats,
+        database: dbStats,
       });
     });
 
     // Rotas da API
     const securityMiddleware = createSecurityMiddleware(config);
-    app.use('/api', securityMiddleware, createPostbackRouter(metaCapi));
+    app.use('/api', securityMiddleware, createPostbackRouter(metaCapi, db));
 
     // Rota raiz
     app.get('/', (_req, res) => {

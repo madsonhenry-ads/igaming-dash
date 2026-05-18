@@ -1,4 +1,5 @@
 import { MetaCapiEvent, MetaCapiRequest, MetaCapiResponse, PostbackResult, AppConfig } from '../types';
+import { DatabaseService } from '../database/service';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger();
@@ -10,40 +11,55 @@ const log = createLogger();
 export class MetaCapiService {
   private readonly baseUrl: string;
   private readonly config: AppConfig;
-  private readonly sentEvents: Map<string, number> = new Map(); // eventId -> timestamp
+  private readonly db: DatabaseService;
+  private readonly sentEvents: Map<string, number> = new Map(); // cache in-memory
 
-  constructor(config: AppConfig) {
+  constructor(config: AppConfig, db: DatabaseService) {
     this.config = config;
+    this.db = db;
     this.baseUrl = `https://graph.facebook.com/${config.meta.apiVersion}/${config.meta.pixelId}/events`;
   }
 
   /**
    * Verifica se um evento já foi enviado (deduplicação).
+   * Primeiro verifica cache in-memory, depois banco de dados.
    */
-  isDuplicate(eventId: string, eventName: string): boolean {
+  async isDuplicate(eventId: string, eventName: string): Promise<boolean> {
     const key = `${eventName}_${eventId}`;
+
+    // Verificar cache in-memory primeiro
     const sentAt = this.sentEvents.get(key);
-    if (!sentAt) return false;
-
-    const ttlMs = this.config.dedup.ttlMinutes * 60 * 1000;
-    const isExpired = Date.now() - sentAt > ttlMs;
-
-    if (isExpired) {
+    if (sentAt) {
+      if (Date.now() - sentAt <= this.config.dedup.ttlMinutes * 60 * 1000) {
+        return true;
+      }
       this.sentEvents.delete(key);
-      return false;
     }
 
-    return true;
+    // Verificar no banco de dados
+    try {
+      return await this.db.isDuplicate(eventId, eventName, this.config.dedup.ttlMinutes);
+    } catch {
+      // Se banco falhar, usa só memoria
+      return false;
+    }
   }
 
   /**
    * Marca um evento como enviado (para deduplicação).
    */
-  markSent(eventId: string, eventName: string): void {
+  async markSent(eventId: string, eventName: string): Promise<void> {
     const key = `${eventName}_${eventId}`;
     this.sentEvents.set(key, Date.now());
 
-    // Limpeza periódica: se estiver grande, limpa entradas expiradas
+    // Marcar também no banco
+    try {
+      await this.db.markDeduplicated(eventId, eventName, this.config.dedup.ttlMinutes);
+    } catch (err) {
+      log.warn({ error: err instanceof Error ? err.message : String(err) }, 'Erro ao salvar dedup no banco');
+    }
+
+    // Limpeza periódica do cache in-memory
     if (this.sentEvents.size > 10000) {
       this.cleanExpired();
     }
@@ -65,7 +81,8 @@ export class MetaCapiService {
   /**
    * Envia um único evento para a Meta CAPI com retry.
    */
-  async sendEvent(event: MetaCapiEvent, attempt: number = 1): Promise<PostbackResult> {
+  async sendEvent(event: MetaCapiEvent, attempt: number = 1, postbackEventId?: number): Promise<PostbackResult> {
+    // Se vier com postbackEventId e for a primeira chamada, registra no banco ao final
     const result: PostbackResult = {
       received: true,
       eventId: event.event_id,
@@ -74,7 +91,7 @@ export class MetaCapiService {
     };
 
     // Verificar duplicata
-    if (this.isDuplicate(event.event_id, event.event_name)) {
+    if (await this.isDuplicate(event.event_id, event.event_name)) {
       log.info({ eventId: event.event_id, eventName: event.event_name }, 'Evento duplicado ignorado');
       result.deduplicated = true;
       result.sent = true;
@@ -84,7 +101,6 @@ export class MetaCapiService {
     try {
       const body: MetaCapiRequest = { data: [event] };
 
-      // Se existir código de teste, adiciona
       if (this.config.meta.testEventCode) {
         body.test_event_code = this.config.meta.testEventCode;
       }
@@ -100,11 +116,13 @@ export class MetaCapiService {
         'Enviando evento para Meta CAPI'
       );
 
+      const startTime = Date.now();
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
+      const duration = Date.now() - startTime;
 
       const data = (await response.json()) as MetaCapiResponse;
 
@@ -117,7 +135,19 @@ export class MetaCapiService {
           'Erro da Meta CAPI'
         );
 
-        // Decidir se retenta baseado no erro
+        // Registrar tentativa no banco
+        if (postbackEventId) {
+          try {
+            await this.db.insertRetryAttempt(
+              0, postbackEventId, event.event_id, attempt,
+              response.status, data, errorMsg, duration
+            );
+          } catch (dbErr) {
+            log.warn({ error: dbErr }, 'Erro ao salvar retry attempt no banco');
+          }
+        }
+
+        // Decidir se retenta
         if (this.shouldRetry(response.status, errorCode)) {
           if (attempt < this.config.retry.maxAttempts) {
             const delay = this.config.retry.baseDelayMs * Math.pow(2, attempt - 1);
@@ -126,7 +156,7 @@ export class MetaCapiService {
               'Retentando envio para Meta CAPI'
             );
             await new Promise(resolve => setTimeout(resolve, delay));
-            return this.sendEvent(event, attempt + 1);
+            return this.sendEvent(event, attempt + 1, postbackEventId);
           }
         }
 
@@ -137,7 +167,7 @@ export class MetaCapiService {
       }
 
       // Sucesso
-      this.markSent(event.event_id, event.event_name);
+      await this.markSent(event.event_id, event.event_name);
       result.sent = true;
       result.metaResponse = data;
 
@@ -155,7 +185,6 @@ export class MetaCapiService {
         'Erro de conexão ao enviar para Meta CAPI'
       );
 
-      // Retentar em erros de conexão/network
       if (attempt < this.config.retry.maxAttempts) {
         const delay = this.config.retry.baseDelayMs * Math.pow(2, attempt - 1);
         log.info(
@@ -176,13 +205,9 @@ export class MetaCapiService {
    * Decide se deve retentar baseado no código de erro HTTP/API.
    */
   private shouldRetry(httpStatus: number, apiErrorCode?: number): boolean {
-    // Erros 5xx e de conexão podem ser retentados
     if (httpStatus >= 500) return true;
-    // Rate limit (429) pode ser retentado
     if (httpStatus === 429) return true;
-    // Erros específicos da API Meta: rate limit, temporary
     if (apiErrorCode === 4 || apiErrorCode === 17 || apiErrorCode === 80004) return true;
-    // Erros 4xx de validação NÃO devem ser retentados
     return false;
   }
 
@@ -192,11 +217,8 @@ export class MetaCapiService {
   async sendBatch(events: MetaCapiEvent[]): Promise<PostbackResult[]> {
     const results: PostbackResult[] = [];
 
-    // Processar em lotes do tamanho máximo permitido
     for (let i = 0; i < events.length; i += this.config.batch.maxSize) {
       const batch = events.slice(i, i + this.config.batch.maxSize);
-
-      // Enviar eventos individualmente (para maior controle de erro)
       for (const event of batch) {
         const result = await this.sendEvent(event);
         results.push(result);
@@ -204,6 +226,16 @@ export class MetaCapiService {
     }
 
     return results;
+  }
+
+  /**
+   * Método público para enviar evento com postbackEventId
+   */
+  async sendEventWithPostbackId(
+    event: MetaCapiEvent,
+    postbackEventId: number
+  ): Promise<PostbackResult> {
+    return this.sendEvent(event, 1, postbackEventId);
   }
 
   /**
