@@ -51,6 +51,19 @@ async function main() {
     const securityMiddleware = createSecurityMiddleware(config);
     app.use('/api', securityMiddleware, createPostbackRouter(metaCapi));
 
+    // Rota raiz
+    app.get('/', (_req, res) => {
+      res.json({
+        service: 'Betsala → Meta CAPI',
+        version: '1.0.0',
+        status: 'running',
+        docs: {
+          health: '/health',
+          postback: '/api/postback',
+        },
+      });
+    });
+
     // Tratamento de rotas não encontradas
     app.use((_req, res) => {
       res.status(404).json({ error: 'Rota não encontrada' });

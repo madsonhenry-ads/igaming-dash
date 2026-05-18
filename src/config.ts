@@ -1,4 +1,4 @@
-import { AppConfig } from './types';
+import { AppConfig } from './types/index';
 
 function requireEnv(name: string): string {
   const value = process.env[name];
