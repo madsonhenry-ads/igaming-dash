@@ -1,0 +1,16 @@
+// Configuração Railway
+// O deploy é feito via build + start definidos no package.json
+// Nixpacks detecta Node.js automaticamente
+
+{
+  "build": {
+    "builder": "nixpacks",
+    "buildCommand": "npm run build"
+  },
+  "deploy": {
+    "startCommand": "npm start",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 30,
+    "restartPolicyType": "on_failure"
+  }
+}
