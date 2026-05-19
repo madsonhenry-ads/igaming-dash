@@ -12,40 +12,34 @@ import { databaseService } from './database/service';
 const log = createLogger();
 
 async function main() {
-  try {
-    // Carregar configuração
-    log.info('Inicializando servidor...');
-    const config: AppConfig = loadConfig();
+  let config: AppConfig | null = null;
+  let metaCapi: MetaCapiService | null = null;
+  const db = databaseService;
+  let startupError: any = null;
+  let isInitialized = false;
 
-    // Inicializar banco de dados
-    await runMigrations();
-    const db = databaseService;
+  // Criar app Express
+  const app = express();
 
-    // Inicializar serviços
-    const metaCapi = new MetaCapiService(config, db);
+  // Middlewares globais
+  app.use(helmet());
+  app.use(cors());
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
-    // Criar app Express
-    const app = express();
+  // Middleware de logging de requisições
+  app.use((req, _res, next) => {
+    log.debug(
+      { method: req.method, path: req.path, ip: req.ip },
+      `${req.method} ${req.path}`
+    );
+    next();
+  });
 
-    // Middlewares globais
-    app.use(helmet());
-    app.use(cors());
-    app.use(express.json());
-    app.use(express.urlencoded({ extended: true }));
-
-    // Middleware de logging de requisições
-    app.use((req, _res, next) => {
-      log.debug(
-        { method: req.method, path: req.path, ip: req.ip },
-        `${req.method} ${req.path}`
-      );
-      next();
-    });
-
-    // Health check
-    app.get('/health', async (_req, res) => {
-      const metaStats = metaCapi.getStats();
-      let dbStats: any = { connected: false };
+  // Health check
+  app.get('/health', async (_req, res) => {
+    let dbStats: any = { connected: false };
+    if (isInitialized && db) {
       try {
         dbStats = await db.getStats();
         dbStats.connected = true;
@@ -53,69 +47,104 @@ async function main() {
         dbStats.connected = false;
         dbStats.error = e instanceof Error ? e.message : String(e);
       }
-      res.json({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        meta: metaStats,
-        database: dbStats,
-      });
+    }
+    res.json({
+      status: startupError ? 'error' : (isInitialized ? 'ok' : 'initializing'),
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      startupError: startupError ? (startupError.message || String(startupError)) : null,
+      meta: metaCapi ? metaCapi.getStats() : null,
+      database: dbStats,
     });
+  });
 
-    // Rotas da API
+  // Rotas da API dinâmicas (aguarda inicialização)
+  app.use('/api', (req, res, next) => {
+    if (startupError) {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Servidor falhou na inicialização',
+        error: startupError.message || String(startupError)
+      });
+    }
+    if (!isInitialized || !config || !metaCapi) {
+      return res.status(503).json({
+        status: 'error',
+        message: 'Servidor ainda está inicializando...'
+      });
+    }
     const securityMiddleware = createSecurityMiddleware(config);
-    app.use('/api', securityMiddleware, createPostbackRouter(metaCapi, db));
+    const router = createPostbackRouter(metaCapi, db);
+    securityMiddleware(req, res, () => router(req, res, next));
+  });
 
-    // Rota raiz
-    app.get('/', (_req, res) => {
-      res.json({
-        service: 'Betsala → Meta CAPI',
-        version: '1.0.0',
-        status: 'running',
-        docs: {
-          health: '/health',
-          postback: '/api/postback',
-        },
-      });
+  // Rota raiz
+  app.get('/', (_req, res) => {
+    res.json({
+      service: 'Betsala → Meta CAPI',
+      version: '1.0.0',
+      status: startupError ? 'error' : (isInitialized ? 'running' : 'initializing'),
+      startupError: startupError ? (startupError.message || String(startupError)) : null,
+      docs: {
+        health: '/health',
+        postback: '/api/postback',
+      },
     });
+  });
 
-    // Tratamento de rotas não encontradas
-    app.use((_req, res) => {
-      res.status(404).json({ error: 'Rota não encontrada' });
+  // Tratamento de rotas não encontradas
+  app.use((_req, res) => {
+    res.status(404).json({ error: 'Rota não encontrada' });
+  });
+
+  // Tratamento global de erros
+  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    log.error({ error: err.message, stack: err.stack }, 'Erro interno do servidor');
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  });
+
+  // Porta da variável de ambiente ou 3000 padrão
+  const port = parseInt(process.env.PORT || '3000', 10);
+
+  // Iniciar servidor imediatamente
+  const server = app.listen(port, () => {
+    log.info(`Servidor rodando na porta ${port}`);
+    log.info(`Health check: http://localhost:${port}/health`);
+
+    // Inicialização assíncrona em segundo plano
+    (async () => {
+      try {
+        log.info('Carregando configuração...');
+        config = loadConfig();
+
+        log.info('Executando migrações do banco de dados...');
+        await runMigrations();
+
+        log.info('Inicializando Meta CAPI Service...');
+        metaCapi = new MetaCapiService(config, db);
+
+        isInitialized = true;
+        log.info('Servidor inicializado e pronto para tráfego');
+      } catch (err: any) {
+        startupError = err;
+        log.error({ error: err.message || String(err), stack: err.stack }, 'Erro ao iniciar os serviços do servidor');
+      }
+    })();
+  });
+
+  // Graceful shutdown
+  const shutdown = (signal: string) => {
+    log.info(`Recebido sinal ${signal}, encerrando servidor...`);
+    server.close(() => {
+      log.info('Servidor encerrado');
+      process.exit(0);
     });
+    // Forçar encerramento após 10s
+    setTimeout(() => process.exit(1), 10000);
+  };
 
-    // Tratamento global de erros
-    app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-      log.error({ error: err.message, stack: err.stack }, 'Erro interno do servidor');
-      res.status(500).json({ error: 'Erro interno do servidor' });
-    });
-
-    // Iniciar servidor
-    const server = app.listen(config.port, () => {
-      log.info(`Servidor rodando na porta ${config.port}`);
-      log.info(`Health check: http://localhost:${config.port}/health`);
-      log.info(`Postback endpoint: http://localhost:${config.port}/api/postback`);
-      log.info(`Pixel ID: ${config.meta.pixelId}`);
-      log.info(`Meta API: ${config.meta.apiVersion}`);
-    });
-
-    // Graceful shutdown
-    const shutdown = (signal: string) => {
-      log.info(`Recebido sinal ${signal}, encerrando servidor...`);
-      server.close(() => {
-        log.info('Servidor encerrado');
-        process.exit(0);
-      });
-      // Forçar encerramento após 10s
-      setTimeout(() => process.exit(1), 10000);
-    };
-
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
-    process.on('SIGINT', () => shutdown('SIGINT'));
-  } catch (error) {
-    log.error({ error: error instanceof Error ? error.message : String(error) }, 'Erro ao iniciar servidor');
-    process.exit(1);
-  }
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 main();
