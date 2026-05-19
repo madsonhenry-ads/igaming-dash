@@ -140,10 +140,6 @@ CREATE TABLE IF NOT EXISTS daily_metrics (
   UNIQUE(date, goal, currency)
 );
 
-ALTER TABLE daily_metrics ADD COLUMN IF NOT EXISTS goal VARCHAR(50);
-UPDATE daily_metrics SET goal = 'unknown' WHERE goal IS NULL;
-ALTER TABLE daily_metrics ALTER COLUMN goal SET DEFAULT 'unknown';
-ALTER TABLE daily_metrics ALTER COLUMN goal SET NOT NULL;
 ALTER TABLE daily_metrics DROP CONSTRAINT IF EXISTS daily_metrics_date_currency_key;
 ALTER TABLE daily_metrics DROP CONSTRAINT IF EXISTS daily_metrics_date_goal_currency_key;
 ALTER TABLE daily_metrics ADD CONSTRAINT daily_metrics_date_goal_currency_key UNIQUE (date, goal, currency);
