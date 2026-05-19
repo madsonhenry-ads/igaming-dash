@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es-CL">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso Restringido - Betsala</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #10ac84;
+            --primary-hover: #1dd1a1;
+            --dark: #0c0d14;
+            --card-bg: #1c1e2b;
+            --text: #ffffff;
+            --accent: #ffd700;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--dark);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-image: radial-gradient(circle at center, #1f2235 0%, #0c0d14 100%);
+        }
+
+        .container {
+            max-width: 450px;
+            width: 100%;
+            padding: 30px 20px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: var(--card-bg);
+            border-radius: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            margin: 15px;
+        }
+
+        .logo {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--text);
+            margin-bottom: 25px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .logo span {
+            color: #ff5e00;
+        }
+
+        .icon-warning {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            color: var(--accent);
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            margin-bottom: 12px;
+            font-weight: 800;
+            color: #ffffff;
+            line-height: 1.3;
+        }
+
+        p.subtitle {
+            font-size: 0.95rem;
+            color: #a0aec0;
+            margin-bottom: 35px;
+            line-height: 1.5;
+        }
+
+        /* Botões de Ação */
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            max-width: 320px;
+            margin-bottom: 25px;
+        }
+
+        .action-button {
+            border: none;
+            padding: 16px 30px;
+            font-size: 1.05rem;
+            font-weight: 800;
+            border-radius: 50px;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-yes {
+            background: linear-gradient(135deg, #ff5e00 0%, #ff3c00 100%);
+            color: #fff;
+            box-shadow: 0 6px 20px rgba(255, 94, 0, 0.35);
+        }
+
+        .btn-yes:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 94, 0, 0.55);
+        }
+
+        .btn-no {
+            background: rgba(255, 255, 255, 0.05);
+            color: #a0aec0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-no:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+
+        /* Rodapé de Informação */
+        .footer-terms {
+            font-size: 0.75rem;
+            color: #718096;
+            line-height: 1.4;
+            max-width: 300px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="logo">BETSALA<span>•</span>VERIFICADO</div>
+        <div class="icon-warning">🔞</div>
+        
+        <h1>¿Tienes 18 años o más?</h1>
+        <p class="subtitle">Este sitio contiene juegos de azar y apuestas online que requieren la mayoría de edad legal para jugar.</p>
+
+        <div class="btn-group">
+            <button class="action-button btn-yes presell-btn" id="btnYes">SÍ, SOY MAYOR DE EDAD</button>
+            <button class="action-button btn-no" id="btnNo">NO, SOY MENOR</button>
+        </div>
+
+        <p class="footer-terms">
+            Al hacer clic en SÍ declaras estar al tanto de que los juegos de azar online conllevan riesgos financieros.
+        </p>
+    </div>
+
+    <script>
+        // =========================================================================
+        // SCRIPT DE ATRIBUIÇÃO E COOKIES (Meta CAPI Integration)
+        // =========================================================================
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+
+        function setCookie(name, value, days) {
+            let expires = "";
+            if (days) {
+                const date = new Date();
+                date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+                expires = "; expires=" + date.toUTCString();
+            }
+            document.cookie = name + "=" + (value || "") + expires + "; path=/; SameSite=Lax";
+        }
+
+        function getUrlParam(param) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(param);
+        }
+
+        function generateFbp() {
+            const creationTime = Date.now();
+            const randomNum = Math.round(Math.random() * 2147483647);
+            return `fb.1.${creationTime}.${randomNum}`;
+        }
+
+        function getRedirectUrl() {
+            const baseUrl = "https://betsala11.com/adv/?btag=2197468_l384790_nId6685";
+            
+            const fbclid = getUrlParam('fbclid');
+            let fbc = getCookie('_fbc');
+            
+            if (fbclid) {
+                const fbcValue = `fb.1.${Date.now()}.${fbclid}`;
+                setCookie('_fbc', fbcValue, 28);
+                fbc = fbcValue;
+            }
+            
+            let fbp = getCookie('_fbp');
+            if (!fbp) {
+                const fbpValue = generateFbp();
+                setCookie('_fbp', fbpValue, 90);
+                fbp = fbpValue;
+            }
+            
+            let finalUrl = baseUrl;
+            if (fbc) {
+                finalUrl += `&sub1=${encodeURIComponent(fbc)}`;
+            }
+            if (fbp) {
+                finalUrl += `&sub2=${encodeURIComponent(fbp)}`;
+            }
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.forEach((value, key) => {
+                if (key !== 'fbclid' && key !== 'btag' && key !== 'sub1' && key !== 'sub2') {
+                    finalUrl += `&${key}=${encodeURIComponent(value)}`;
+                }
+            });
+            
+            return finalUrl;
+        }
+
+        // =========================================================================
+        // LÓGICA DE CLIQUE DOS BOTÕES
+        // =========================================================================
+        const btnYes = document.getElementById('btnYes');
+        const btnNo = document.getElementById('btnNo');
+
+        btnYes.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.location.href = getRedirectUrl();
+        });
+
+        btnNo.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.location.href = "https://www.google.com";
+        });
+
+    </script>
+</body>
+</html>

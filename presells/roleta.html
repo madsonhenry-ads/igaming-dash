@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="es-CL">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ruleta de la Fortuna - Bono Exclusivo Betsala</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #ff5e00;
+            --primary-hover: #e05300;
+            --dark: #0f111a;
+            --card-bg: #1a1d29;
+            --text: #ffffff;
+            --accent: #ffd700;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--dark);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-image: radial-gradient(circle at center, #23273a 0%, #0f111a 100%);
+        }
+
+        .container {
+            max-width: 500px;
+            width: 100%;
+            padding: 20px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--text);
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .logo span {
+            color: var(--primary);
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 25px;
+            font-weight: 600;
+            color: #d1d5db;
+        }
+
+        /* Estrutura da Roleta */
+        .wheel-container {
+            position: relative;
+            width: 340px;
+            height: 340px;
+            margin-bottom: 30px;
+            filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5));
+        }
+
+        /* Indicador / Seta da Roleta */
+        .pointer {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 35px;
+            height: 45px;
+            background: var(--accent);
+            clip-path: polygon(50% 100%, 0 0, 100% 0);
+            z-index: 10;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+        }
+
+        .wheel {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 10px solid #282d3d;
+            position: relative;
+            overflow: hidden;
+            transition: transform 4s cubic-bezier(0.15, 0.85, 0.35, 1);
+            background: conic-gradient(
+                #1e2230 0deg 45deg,
+                #ff5e00 45deg 90deg,
+                #1e2230 90deg 135deg,
+                #ffd700 135deg 180deg,
+                #1e2230 180deg 225deg,
+                #ff5e00 225deg 270deg,
+                #1e2230 270deg 315deg,
+                #ffd700 315deg 360deg
+            );
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
+        }
+
+        /* Textos dentro da Roleta */
+        .wheel-labels {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+        }
+
+        .label {
+            position: absolute;
+            width: 50%;
+            height: 40px;
+            top: calc(50% - 20px);
+            left: 50%;
+            transform-origin: 0% 50%;
+            padding-left: 60px;
+            font-weight: 800;
+            font-size: 0.95rem;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+
+        /* Posicionamento radial dos textos das fatias */
+        .label:nth-child(1) { transform: rotate(22.5deg); }
+        .label:nth-child(2) { transform: rotate(67.5deg); color: #000; }
+        .label:nth-child(3) { transform: rotate(112.5deg); }
+        .label:nth-child(4) { transform: rotate(157.5deg); color: #000; }
+        .label:nth-child(5) { transform: rotate(202.5deg); }
+        .label:nth-child(6) { transform: rotate(247.5deg); color: #000; }
+        .label:nth-child(7) { transform: rotate(292.5deg); }
+        .label:nth-child(8) { transform: rotate(337.5deg); color: #000; }
+
+        /* Botão do Centro da Roleta */
+        .spin-btn-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 70px;
+            height: 70px;
+            background: #fff;
+            border-radius: 50%;
+            border: 5px solid #282d3d;
+            color: #111;
+            font-weight: 800;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            z-index: 5;
+            user-select: none;
+            transition: transform 0.2s;
+        }
+
+        .spin-btn-center:active {
+            transform: translate(-50%, -50%) scale(0.92);
+        }
+
+        /* Botão de Ação Principal */
+        .action-button {
+            background: linear-gradient(135deg, var(--primary) 0%, #ff3c00 100%);
+            color: #fff;
+            border: none;
+            padding: 16px 40px;
+            font-size: 1.2rem;
+            font-weight: 800;
+            border-radius: 50px;
+            cursor: pointer;
+            width: 100%;
+            max-width: 320px;
+            box-shadow: 0 6px 20px rgba(255, 94, 0, 0.4);
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 10px;
+        }
+
+        .action-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 94, 0, 0.6);
+        }
+
+        /* MODAL DE PRÊMIO */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+            padding: 20px;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal {
+            background: var(--card-bg);
+            border: 2px solid var(--accent);
+            border-radius: 24px;
+            padding: 35px 25px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            transform: scale(0.7);
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1);
+        }
+
+        .modal-icon {
+            font-size: 4rem;
+            margin-bottom: 15px;
+            animation: bounce 2s infinite;
+        }
+
+        .modal h2 {
+            font-size: 1.8rem;
+            color: var(--accent);
+            margin-bottom: 10px;
+            font-weight: 800;
+        }
+
+        .modal p {
+            font-size: 1.1rem;
+            color: #d1d5db;
+            margin-bottom: 25px;
+            line-height: 1.5;
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-15px); }
+            60% { transform: translateY(-7px); }
+        }
+
+        /* Rodapé de Informação */
+        .footer-terms {
+            margin-top: 30px;
+            font-size: 0.75rem;
+            color: #6b7280;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="logo">BETSALA<span>•</span>CLUB</div>
+        <h1>¡Gira la Ruleta y Reclama tu Bono!</h1>
+
+        <div class="wheel-container">
+            <div class="pointer"></div>
+            <div class="wheel" id="wheel">
+                <div class="wheel-labels">
+                    <div class="label">BONO 50%</div>
+                    <div class="label">BONO 200%</div>
+                    <div class="label">GIRA OTRA VEZ</div>
+                    <div class="label">50 GIROS</div>
+                    <div class="label">BONO 20%</div>
+                    <div class="label">BONO 200%</div>
+                    <div class="label">GIRA OTRA VEZ</div>
+                    <div class="label">50 GIROS</div>
+                </div>
+            </div>
+            <div class="spin-btn-center" id="spinCenterBtn">GIRAR</div>
+        </div>
+
+        <button class="action-button presell-btn" id="mainActionBtn" disabled style="opacity: 0.5; cursor: not-allowed;">
+            GIRAR LA RULETA
+        </button>
+
+        <p class="footer-terms">
+            Juego autorizado solo para mayores de 18 años. Se aplican los Términos y Condiciones de la plataforma Betsala.
+        </p>
+    </div>
+
+    <!-- MODAL DE VITÓRIA -->
+    <div class="modal-overlay" id="victoryModal">
+        <div class="modal">
+            <div class="modal-icon">🏆</div>
+            <h2>¡FELICITACIONES!</h2>
+            <p>¡Ganaste un bono exclusivo de <strong>200% en tu primer depósito + 50 Giros Gratis</strong>!</p>
+            <button class="action-button presell-btn" id="claimRewardBtn">RECLAMAR BONO</button>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // SCRIPT DE ATRIBUIÇÃO E COOKIES (Meta CAPI Integration)
+        // =========================================================================
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+
+        function setCookie(name, value, days) {
+            let expires = "";
+            if (days) {
+                const date = new Date();
+                date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+                expires = "; expires=" + date.toUTCString();
+            }
+            document.cookie = name + "=" + (value || "") + expires + "; path=/; SameSite=Lax";
+        }
+
+        function getUrlParam(param) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(param);
+        }
+
+        function generateFbp() {
+            const creationTime = Date.now();
+            const randomNum = Math.round(Math.random() * 2147483647);
+            return `fb.1.${creationTime}.${randomNum}`;
+        }
+
+        function getRedirectUrl() {
+            const baseUrl = "https://betsala11.com/adv/?btag=2197468_l384790_nId6685";
+            
+            const fbclid = getUrlParam('fbclid');
+            let fbc = getCookie('_fbc');
+            
+            if (fbclid) {
+                const fbcValue = `fb.1.${Date.now()}.${fbclid}`;
+                setCookie('_fbc', fbcValue, 28);
+                fbc = fbcValue;
+            }
+            
+            let fbp = getCookie('_fbp');
+            if (!fbp) {
+                const fbpValue = generateFbp();
+                setCookie('_fbp', fbpValue, 90);
+                fbp = fbpValue;
+            }
+            
+            let finalUrl = baseUrl;
+            if (fbc) {
+                finalUrl += `&sub1=${encodeURIComponent(fbc)}`;
+            }
+            if (fbp) {
+                finalUrl += `&sub2=${encodeURIComponent(fbp)}`;
+            }
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.forEach((value, key) => {
+                if (key !== 'fbclid' && key !== 'btag' && key !== 'sub1' && key !== 'sub2') {
+                    finalUrl += `&${key}=${encodeURIComponent(value)}`;
+                }
+            });
+            
+            return finalUrl;
+        }
+
+        // =========================================================================
+        // LÓGICA DO JOGO DA ROLETA
+        // =========================================================================
+        const wheel = document.getElementById('wheel');
+        const spinCenterBtn = document.getElementById('spinCenterBtn');
+        const mainActionBtn = document.getElementById('mainActionBtn');
+        const victoryModal = document.getElementById('victoryModal');
+        const claimRewardBtn = document.getElementById('claimRewardBtn');
+        
+        let hasSpun = false;
+
+        function spinWheel() {
+            if (hasSpun) return;
+            hasSpun = true;
+            
+            spinCenterBtn.style.pointerEvents = 'none';
+            mainActionBtn.style.pointerEvents = 'none';
+
+            // Parar na fatia de "BONO 200%" (posição angular correspondente)
+            const degrees = 1800 + 292.5; 
+            
+            wheel.style.transform = `rotate(${degrees}deg)`;
+
+            setTimeout(() => {
+                victoryModal.classList.add('active');
+            }, 4100);
+        }
+
+        spinCenterBtn.addEventListener('click', spinWheel);
+        
+        mainActionBtn.removeAttribute('disabled');
+        mainActionBtn.style.opacity = '1';
+        mainActionBtn.style.cursor = 'pointer';
+        mainActionBtn.addEventListener('click', spinWheel);
+
+        claimRewardBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.location.href = getRedirectUrl();
+        });
+
+    </script>
+</body>
+</html>

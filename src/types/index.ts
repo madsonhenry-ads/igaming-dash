@@ -74,7 +74,10 @@ export type BetsalaEventType = 'registration' | 'deposit' | 'cpa' | 'ftd';
 export const BETSALA_EVENT_MAP: Record<string, MetaEventName> = {
   registration: 'CompleteRegistration',
   register: 'CompleteRegistration',
+  registro: 'CompleteRegistration',
   deposit: 'Purchase',
+  deposito: 'Purchase',
+  'depósito': 'Purchase',
   cpa: 'Lead',
   ftd: 'Subscribe',
   first_deposit: 'Subscribe',
