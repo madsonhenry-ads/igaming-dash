@@ -37,6 +37,35 @@ CREATE TABLE IF NOT EXISTS postback_events (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS goal VARCHAR(50);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS event_id VARCHAR(255);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS click_id VARCHAR(255);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS user_id VARCHAR(255);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS external_id VARCHAR(255);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS btag VARCHAR(255);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS amount NUMERIC(15, 2);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'USD';
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS revenue NUMERIC(15, 2);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS payout NUMERIC(15, 2);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS status VARCHAR(50);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS transaction_id VARCHAR(255);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS order_id VARCHAR(255);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS email_hash VARCHAR(64);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS phone_hash VARCHAR(64);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS fbc VARCHAR(255);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS fbp VARCHAR(255);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS campaign_id VARCHAR(255);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS sub_id VARCHAR(255);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS sub1 VARCHAR(255);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS sub2 VARCHAR(255);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS sub3 VARCHAR(255);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS country VARCHAR(100);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS city VARCHAR(100);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS region VARCHAR(100);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS ip VARCHAR(45);
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS user_agent TEXT;
+ALTER TABLE postback_events ADD COLUMN IF NOT EXISTS raw_params JSONB;
+
 -- 2. Eventos enviados para Meta CAPI
 CREATE TABLE IF NOT EXISTS meta_capi_events (
   id SERIAL PRIMARY KEY,
@@ -110,6 +139,14 @@ CREATE TABLE IF NOT EXISTS daily_metrics (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(date, goal, currency)
 );
+
+ALTER TABLE daily_metrics ADD COLUMN IF NOT EXISTS goal VARCHAR(50);
+UPDATE daily_metrics SET goal = 'unknown' WHERE goal IS NULL;
+ALTER TABLE daily_metrics ALTER COLUMN goal SET DEFAULT 'unknown';
+ALTER TABLE daily_metrics ALTER COLUMN goal SET NOT NULL;
+ALTER TABLE daily_metrics DROP CONSTRAINT IF EXISTS daily_metrics_date_currency_key;
+ALTER TABLE daily_metrics DROP CONSTRAINT IF EXISTS daily_metrics_date_goal_currency_key;
+ALTER TABLE daily_metrics ADD CONSTRAINT daily_metrics_date_goal_currency_key UNIQUE (date, goal, currency);
 
 -- Índices
 CREATE INDEX IF NOT EXISTS idx_postback_events_event_id ON postback_events(event_id);
